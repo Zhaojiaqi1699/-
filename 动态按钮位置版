@@ -1,0 +1,112 @@
+// ==UserScript==
+// @name         网页文本保存工具（动态位置版）
+// @namespace    https://github.com/Zhaojiaqi1699
+// @version      1.1
+// @description  选中网页文字后，点击悬浮按钮保存到本地TXT文件（可多次保存）
+// @author       赵家琦
+// @match        *://*/*
+// @grant        GM_download
+// @grant        GM_addStyle
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // 自定义按钮样式
+    GM_addStyle(`
+        .save-text-btn {
+            position: absolute; /* 修改为绝对定位 */
+            z-index: 999999;
+            padding: 12px 20px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.16);
+            font-family: Arial;
+            font-size: 14px;
+            transition: 0.3s;
+            opacity: 0;
+            transform: translateY(100%);
+        }
+        .save-text-btn.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .save-text-btn:hover {
+            background: #1976D2;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+        }
+    `);
+
+    // 创建按钮
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'save-text-btn';
+    saveBtn.textContent = '💾 保存选中内容';
+    document.body.appendChild(saveBtn);
+
+    // 文本缓存（用于多次保存）
+    let savedTexts = [];
+
+    // 显示/隐藏按钮
+    function toggleButton(show, x, y) {
+        if (show) {
+            saveBtn.style.left = `${x}px`;
+            saveBtn.style.top = `${y}px`;
+        }
+        saveBtn.classList[show ? 'add' : 'remove']('show');
+    }
+
+    // 检测文本选择
+    document.addEventListener('mouseup', function(e) {
+        const selection = window.getSelection().toString().trim();
+        if (selection.length > 0) {
+            const range = window.getSelection().getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            const x = rect.left + window.pageXOffset;
+            const y = rect.top + window.pageYOffset - saveBtn.offsetHeight;
+            toggleButton(true, x, y);
+        } else {
+            toggleButton(false);
+        }
+    });
+
+    // 保存功能
+    saveBtn.addEventListener('click', () => {
+        const selection = window.getSelection().toString().trim();
+        if (!selection) return;
+
+        // 添加到缓存
+        savedTexts.push({
+            text: selection,
+            time: new Date().toLocaleString()
+        });
+
+        // 生成文件内容
+        const fileContent = savedTexts
+            .map((entry, index) => `【记录${index + 1}】${entry.time}\n${entry.text}\n`)
+            .join('\n');
+
+        // 创建文件名
+        const fileName = `网页文本收集_${new Date()
+            .toISOString()
+            .slice(0, 10)
+            .replace(/-/g, '')}.txt`;
+
+        // 保存文件
+        GM_download({
+            url: URL.createObjectURL(new Blob([fileContent], { type: 'text/plain' })),
+            name: fileName,
+            saveAs: true,
+            onload: () => toggleButton(false)
+        });
+    });
+
+    // 双击按钮清空缓存
+    saveBtn.addEventListener('dblclick', () => {
+        savedTexts = [];
+        alert('已清空文本缓存！');
+        toggleButton(false);
+    });
+})();
